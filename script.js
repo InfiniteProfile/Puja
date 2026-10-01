@@ -36,6 +36,7 @@
   const CLOTH = ['#2b1d3f', '#14305e', '#0b4a38', '#5e1520', '#3a2a18', '#222a35', '#7a3a12', '#1e4a55'];
   const GOLD = '#d9ae45';
   const DARK = '#2b1a12';
+  const LIP = '#b8324a';
 
   /* 128-bit hash of a BigInt, folded 32 bits at a time (cyrb128 style). Works for any size. */
   function seedFrom(n) {
@@ -84,6 +85,7 @@
     s += `<rect width="100" height="100" fill="${pal.c2}"/>`;
     s += `<circle cx="${sx}" cy="${sy}" r="${sr}" fill="#fff" opacity=".16"/>`;
     s += '<path d="M0 80Q30 62 55 74T100 68V100H0Z" fill="#000" opacity=".12"/>';
+    if (style === 0) s += `<path d="M28 52C23 24 40 15 50 15S77 24 72 52C73 62 70 68 66 70L34 70C30 68 27 62 28 52Z" fill="${hair}"/>`;
     if (style === 1) s += `<path d="M29 48C24 22 40 14 50 14S76 22 71 48C73 64 70 76 66 84L34 84C30 76 27 64 29 48Z" fill="${hair}"/>`;
     s += `<path d="M10 100C12 78 30 70 50 70S88 78 90 100Z" fill="${cloth}"/>`;
     s += `<rect x="43" y="56" width="14" height="19" rx="6" fill="${skin}"/>`;
@@ -92,9 +94,8 @@
     s += `<circle cx="33" cy="48" r="3.3" fill="${skin}"/><circle cx="67" cy="48" r="3.3" fill="${skin}"/>`;
     s += `<ellipse cx="50" cy="46" rx="17" ry="20" fill="${skin}"/>`;
 
-    if (style === 0 || style === 2) s += `<path d="M32 46C29 24 43 17 50 17S71 24 68 46C65 36 58 31 50 31S35 36 32 46Z" fill="${hair}"/>`;
-    if (style === 2) s += `<circle cx="50" cy="13" r="8" fill="${hair}"/>`;
-    if (style === 1) s += `<path d="M32 43C35 27 65 27 68 43C60 35 40 35 32 43Z" fill="${hair}"/>`;
+    if (style === 2) s += `<path d="M32 46C29 24 43 17 50 17S71 24 68 46C65 36 58 31 50 31S35 36 32 46Z" fill="${hair}"/><circle cx="50" cy="13" r="8.5" fill="${hair}"/>`;
+    if (style === 0 || style === 1) s += `<path d="M32 44C34 26 66 26 68 44C62 34 52 33 46 34C40 35 35 38 32 44Z" fill="${hair}"/>`;
     if (style === 3) {
       s += `<g fill="${hair}"><circle cx="38" cy="30" r="9"/><circle cx="46" cy="25" r="9"/><circle cx="54" cy="25" r="9"/><circle cx="62" cy="30" r="9"/><circle cx="33" cy="38" r="7"/><circle cx="67" cy="38" r="7"/><circle cx="50" cy="29" r="9"/></g>`;
     }
@@ -105,14 +106,15 @@
 
     s += `<path d="M38.5 41.5Q43 39 47 41M53 41Q57 39 61.5 41.5" fill="none" stroke="${brow}" stroke-width="1.7" stroke-linecap="round"/>`;
     s += `<circle cx="43" cy="47" r="1.7" fill="${DARK}"/><circle cx="57" cy="47" r="1.7" fill="${DARK}"/>`;
+    s += `<path d="M40.6 45.6L39.2 44.6M42 44.6L41.4 43.2M59.4 45.6L60.8 44.6M58 44.6L58.6 43.2" stroke="${DARK}" stroke-width=".9" stroke-linecap="round"/>`;
     s += '<circle cx="39" cy="53" r="3.4" fill="#e0524a" opacity=".16"/><circle cx="61" cy="53" r="3.4" fill="#e0524a" opacity=".16"/>';
-    if (mouth === 0) s += `<path d="M44 54Q50 60 56 54" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/>`;
-    else if (mouth === 1) s += `<path d="M45 55Q50 58 55 55" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/>`;
-    else s += `<path d="M44 54.5Q50 57 56 54" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/><circle cx="56.6" cy="54.2" r=".9" fill="${DARK}"/>`;
+    if (mouth === 0) s += `<path d="M44 54Q50 60 56 54" fill="none" stroke="${LIP}" stroke-width="2" stroke-linecap="round"/>`;
+    else if (mouth === 1) s += `<path d="M45 55Q50 58 55 55" fill="none" stroke="${LIP}" stroke-width="2" stroke-linecap="round"/>`;
+    else s += `<path d="M44 54.5Q50 57 56 54" fill="none" stroke="${LIP}" stroke-width="2" stroke-linecap="round"/>`;
 
+    s += `<circle cx="32.6" cy="54" r="1.9" fill="${GOLD}"/><circle cx="67.4" cy="54" r="1.9" fill="${GOLD}"/>`;
     if (acc === 1) s += `<g fill="none" stroke="${DARK}" stroke-width="1.4"><circle cx="43" cy="47" r="5.4"/><circle cx="57" cy="47" r="5.4"/><path d="M48.4 47H51.6"/></g>`;
-    else if (acc === 2) s += `<circle cx="32.6" cy="54" r="1.9" fill="${GOLD}"/><circle cx="67.4" cy="54" r="1.9" fill="${GOLD}"/>`;
-    else if (acc === 3) s += `<circle cx="50" cy="83" r="2.5" fill="${GOLD}" stroke="#fff" stroke-opacity=".5" stroke-width=".6"/>`;
+    else if (acc === 2) s += `<circle cx="50" cy="83" r="2.5" fill="${GOLD}" stroke="#fff" stroke-opacity=".5" stroke-width=".6"/>`;
     return s + '</svg>';
   }
 
