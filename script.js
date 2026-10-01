@@ -160,7 +160,6 @@
   const MAX_W = 28;         // hard cap on cards in the DOM
   const MAX_DIGITS = 100000;
   const CACHE_MAX = 64;
-  const FULL_DIGITS = 96;   // longest number shown in full on a card
 
   const $ = (id) => document.getElementById(id);
   const vp = $('viewport'), track = $('track'), nowEl = $('now');
@@ -220,18 +219,21 @@
     const p = getProfile(n, s);
     slot._p = p;
     const r = slot._r;
-    const shown = short(s, FULL_DIGITS);
+    const L = s.length;
 
     r.card.style.setProperty('--ac1', p.pal.c1);
     r.card.style.setProperty('--ac2', p.pal.c2);
     r.card.style.setProperty('--ac1-rgb', p.pal.rgb);
-    r.card.setAttribute('aria-label', 'Puja ' + short(s, 40));
-    if (s.length > 40) r.card.setAttribute('data-long', ''); else r.card.removeAttribute('data-long');
+    r.card.setAttribute('aria-label', 'Puja ' + (L <= 200 ? s : short(s, 40)));
+    if (L > 40) r.card.setAttribute('data-long', ''); else r.card.removeAttribute('data-long');
+    if (L > 200) r.card.setAttribute('data-huge', ''); else r.card.removeAttribute('data-huge');
 
-    r.name.textContent = 'Puja ' + shown;
-    r.name.dataset.size = shown.length <= 7 ? '1' : shown.length <= 12 ? '2' : shown.length <= 20 ? '3' : shown.length <= 40 ? '4' : '5';
-    r.name.title = s.length > FULL_DIGITS ? 'Puja ' + s.slice(0, 2000) + (s.length > 2000 ? '…' : '') : '';
-    if (s.length > FULL_DIGITS) { r.note.textContent = s.length.toLocaleString() + ' digits'; r.note.hidden = false; }
+    /* The full, exact number is always shown. Long numbers get smaller type; very long ones scroll inside the card. */
+    r.name.textContent = 'Puja ' + s;
+    r.name.dataset.size = L <= 7 ? '1' : L <= 12 ? '2' : L <= 20 ? '3' : L <= 40 ? '4' : L <= 80 ? '5' : L <= 200 ? '6' : '7';
+    if (L > 200) r.name.setAttribute('tabindex', '0'); else r.name.removeAttribute('tabindex');
+    r.name.scrollTop = 0;
+    if (L > 40) { r.note.textContent = L.toLocaleString() + ' digits'; r.note.hidden = false; }
     else r.note.hidden = true;
 
     r.job.textContent = p.job;
@@ -331,8 +333,10 @@
     curStr = node._s;
     curProfile = node._p;
 
-    nowEl.textContent = 'Puja ' + short(curStr, 26);
-    nowEl.title = 'Puja ' + (curStr.length > 400 ? short(curStr, 400) : curStr);
+    nowEl.textContent = 'Puja ' + curStr;
+    nowEl.parentNode.classList.toggle('long', curStr.length > 14);
+    nowEl.dataset.size = curStr.length <= 14 ? '1' : curStr.length <= 60 ? '2' : '3';
+    nowEl.scrollTop = 0;
     document.title = 'Puja ' + short(curStr, 30) + ' — PUJA Infinite Profile Generator';
     btnPrev.disabled = curStr === '1';
 
@@ -524,8 +528,9 @@
 
   function shareParts() {
     const s = curStr, p = curProfile;
-    const text = 'Puja ' + short(s, 40) + (p ? ' — ' + p.job + ', ' + p.loc : '');
-    return { text, url: urlFor(s), title: 'Puja ' + short(s, 40) };
+    const label = 'Puja ' + (s.length <= 300 ? s : short(s, 60));
+    const text = label + (p ? ' — ' + p.job + ', ' + p.loc : '');
+    return { text, url: urlFor(s), title: label };
   }
 
   btnCopy.addEventListener('click', async () => {
