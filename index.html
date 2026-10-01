@@ -1,49 +1,57 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#11110f">
-  <title>Puja Infinite — Profile Generator</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUJA — Infinite Profile Generator</title>
+    <meta name="description" content="An effectively endless sequence of profiles powered by virtualized client-side rendering and BigInt architecture.">
+    <meta name="theme-color" content="#0A0A0A">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="Return to Puja 1"><span class="brand-mark">P</span><span>PUJA</span></a>
-      <div class="jump-wrap">
-        <label class="sr-only" for="jumpInput">Jump to Puja number</label>
-        <input id="jumpInput" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Jump to Puja number" aria-describedby="jumpHint">
-        <button id="jumpButton" type="button">Jump</button>
-      </div>
-      <div id="currentPosition" class="position" aria-live="polite"><span>Current profile</span><strong>Puja 1</strong></div>
+    <header class="app-header">
+        <div class="header-content">
+            <div class="brand">
+                <h1 class="logo">PUJA</h1>
+                <span class="subtitle">Infinite Profile Generator</span>
+            </div>
+            <div class="header-controls">
+                <div class="current-indicator" aria-live="polite">
+                    <span class="label">CURRENT</span>
+                    <span id="current-puja-number" class="value">Puja 1</span>
+                </div>
+                <div class="jump-control">
+                    <input 
+                        type="text" 
+                        id="jump-input" 
+                        inputmode="numeric" 
+                        placeholder="Jump to Puja #..." 
+                        aria-label="Jump to specific profile number"
+                    >
+                    <button id="jump-btn" type="button">Go</button>
+                </div>
+                <button id="dev-toggle-btn" class="dev-toggle-btn" type="button" title="Toggle Performance Monitor">⚡</button>
+            </div>
+        </div>
     </header>
-    <p id="jumpHint" class="sr-only">Enter any positive whole number, including values larger than standard JavaScript numbers.</p>
 
-    <section id="scrollViewport" class="scroll-viewport" aria-label="Infinite Puja profile feed" tabindex="0">
-      <div class="edge-message top-edge">The Puja universe begins here</div>
-      <div id="topSpacer" aria-hidden="true"></div>
-      <div id="cardPool" class="card-pool" role="feed" aria-busy="false"></div>
-      <div id="bottomSpacer" aria-hidden="true"></div>
-      <div class="edge-message bottom-edge">Keep exploring</div>
-    </section>
-  </main>
-  <template id="cardTemplate">
-    <article class="profile-card" role="article">
-      <div class="card-topline"><span class="sequence">Profile</span><span class="status-dot" title="Active"></span></div>
-      <div class="identity-row">
-        <div class="avatar" aria-hidden="true"></div>
-        <div class="identity"><h2 class="name"></h2><p class="handle"></p></div>
-      </div>
-      <p class="bio"></p>
-      <dl class="details"><div><dt>Location</dt><dd class="location"></dd></div><div><dt>Profession</dt><dd class="profession"></dd></div></dl>
-      <div class="interests" aria-label="Interests"></div>
-      <div class="metrics"><div><b class="followers"></b><span>Followers</span></div><div><b class="following"></b><span>Following</span></div><div><b class="posts"></b><span>Posts</span></div></div>
-      <button class="view-profile" type="button">View Profile <span aria-hidden="true">↗</span></button>
-    </article>
-  </template>
-  <dialog id="profileDialog" class="profile-dialog"><button class="close-dialog" aria-label="Close profile">×</button><div id="dialogContent"></div></dialog>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="script.js"></script>
+    <main class="viewport-container" id="viewport-container">
+        <div class="virtual-spacer" id="virtual-spacer">
+            <div class="profile-stream" id="profile-stream">
+                <!-- Virtualized cards will be recycled and mounted here -->
+            </div>
+        </div>
+    </main>
+
+    <div id="perf-monitor" class="perf-monitor hidden">
+        <div>DOM Cards: <span id="perf-dom-count">0</span></div>
+        <div>Logical Profile: <span id="perf-logical">1</span></div>
+        <div>Scroll Pos: <span id="perf-scroll">0</span></div>
+        <div>Cache: <span id="perf-cache">0</span></div>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <script src="script.js"></script>
 </body>
 </html>
