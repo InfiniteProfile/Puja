@@ -158,7 +158,6 @@
 
   const BUF = 3;            // cards kept above the viewport
   const MAX_W = 28;         // hard cap on cards in the DOM
-  const MAX_DIGITS = 100000;
   const CACHE_MAX = 64;
 
   const $ = (id) => document.getElementById(id);
@@ -484,8 +483,8 @@
     if (!/^\d+$/.test(s)) return { error: 'Use whole numbers only, like 5000 or 98765432101234567890.' };
     s = s.replace(/^0+(?=\d)/, '');
     if (s === '0') return { error: 'Puja numbers start at 1.' };
-    if (s.length > MAX_DIGITS) return { error: 'That number is too long. The limit is ' + MAX_DIGITS.toLocaleString() + ' digits.' };
-    return { n: BigInt(s), s };
+    try { return { n: BigInt(s), s }; }
+    catch (e) { return { error: 'Your browser ran out of memory for a number this large. Try a shorter one.' }; }
   }
 
   function showError(msg) {
