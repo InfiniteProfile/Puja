@@ -203,7 +203,7 @@
       '</article>';
     const q = (sel) => slot.querySelector(sel);
     slot._r = {
-      card: q('.card'), portrait: q('.portrait'), name: q('.name'), note: q('.idnote'),
+      card: q('.card'), body: q('.body'), portrait: q('.portrait'), name: q('.name'), note: q('.idnote'),
       job: q('.job'), loc: q('.loc'), bio: q('.bio'),
       chips: slot.querySelectorAll('.chips li'), stats: slot.querySelectorAll('.stats dd')
     };
@@ -226,13 +226,10 @@
     r.card.style.setProperty('--ac1-rgb', p.pal.rgb);
     r.card.setAttribute('aria-label', 'Puja ' + (L <= 200 ? s : short(s, 40)));
     if (L > 40) r.card.setAttribute('data-long', ''); else r.card.removeAttribute('data-long');
-    if (L > 200) r.card.setAttribute('data-huge', ''); else r.card.removeAttribute('data-huge');
 
-    /* The full, exact number is always shown. Long numbers get smaller type; very long ones scroll inside the card. */
+    /* The full, exact number is always shown. Long numbers get smaller type, and the card grows taller to hold every digit. */
     r.name.textContent = 'Puja ' + s;
     r.name.dataset.size = L <= 7 ? '1' : L <= 12 ? '2' : L <= 20 ? '3' : L <= 40 ? '4' : L <= 80 ? '5' : L <= 200 ? '6' : '7';
-    if (L > 200) r.name.setAttribute('tabindex', '0'); else r.name.removeAttribute('tabindex');
-    r.name.scrollTop = 0;
     if (L > 40) { r.note.textContent = L.toLocaleString() + ' digits'; r.note.hidden = false; }
     else r.note.hidden = true;
 
@@ -254,6 +251,7 @@
   let curNode = null, curIdx = 0, curStr = '', curBig = 1n, curProfile = null;
   let raf = 0, rlRaf = 0, urlTimer = 0, urlStr = '', toastTimer = 0;
   let anim = 0, shiftAcc = 0;
+  let baseCardH = 0, extraH = 0, fitLen = 0, wPx = 0;
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -314,6 +312,7 @@
         if (k > 0) shiftUp(k);
       }
     }
+    if (track.lastElementChild._s.length !== fitLen) refit();
     updateCurrent();
   }
 
@@ -374,11 +373,45 @@
     }
   });
 
+  /* Card height = normal height + whatever extra the longest number in the window needs. */
+  function setSizes(ex) {
+    extraH = ex;
+    cardH = baseCardH + ex;
+    pitch = cardH + gap;
+    vp.style.setProperty('--card-h', cardH + 'px');
+    vp.style.setProperty('--pitch', pitch + 'px');
+  }
+
+  /* Numbers only grow downwards, so the last card in the window has the most digits. */
+  function fitSizes() {
+    const last = track.lastElementChild;
+    const L = last ? last._s.length : 0;
+    fitLen = L;
+    let ex = 0;
+    if (L > 40) {
+      setSizes(0);
+      const b = last._r.body;
+      const over = b.scrollHeight - b.clientHeight;
+      if (over > 0) ex = Math.ceil((over + 8) / 8) * 8;
+    }
+    setSizes(ex);
+  }
+
+  function refit() {
+    const pos = (vp.scrollTop + H / 2) / pitch;
+    const idx = clamp(Math.floor(pos), 0, W - 1), frac = pos - idx;
+    const before = extraH;
+    fitSizes();
+    if (extraH !== before) cancelAnim();
+    vp.scrollTop = Math.max(0, (idx + frac) * pitch - H / 2);
+  }
+
   function relayout(first, startN) {
     const m = measure();
     if (m.H <= 0 || vp.clientWidth <= 0) return;
     const nW = Math.min(Math.ceil(m.H / m.pitch) + 1 + 2 * BUF, MAX_W);
-    if (!first && m.pitch === pitch && m.wide === wide && nW === W) { H = m.H; schedule(); return; }
+    const w = vp.clientWidth;
+    if (!first && m.cardH === baseCardH && m.gap === gap && m.wide === wide && nW === W && w === wPx) { H = m.H; schedule(); return; }
 
     let anchor, frac = 0.5;
     if (first) anchor = startN;
@@ -390,11 +423,10 @@
     }
 
     cancelAnim();
-    H = m.H; pitch = m.pitch; gap = m.gap; cardH = m.cardH; wide = m.wide; W = nW;
+    H = m.H; gap = m.gap; baseCardH = m.cardH; wide = m.wide; W = nW; wPx = w;
     vp.dataset.layout = wide ? 'wide' : 'tall';
-    vp.style.setProperty('--card-h', cardH + 'px');
     vp.style.setProperty('--gap', gap + 'px');
-    vp.style.setProperty('--pitch', pitch + 'px');
+    setSizes(0);
 
     while (track.children.length < W) track.appendChild(createSlot());
     while (track.children.length > W) track.removeChild(track.lastElementChild);
@@ -403,6 +435,7 @@
     base = anchor > BigInt(BUF) ? anchor - BigInt(BUF) : 1n;
     const off = Number(anchor - base);
     fillAll();
+    fitSizes();
     if (first) { vp.scrollTop = Math.max(0, topFor(off)); playEnter(off); }
     else vp.scrollTop = Math.max(0, (off + frac) * pitch - H / 2);
     updateCurrent();
@@ -419,6 +452,7 @@
     const off = Number(n - base);
     clearCur();
     fillAll();
+    fitSizes();
     vp.scrollTop = Math.max(0, topFor(off));
     playEnter(off);
     updateCurrent();
@@ -446,6 +480,7 @@
   function parseNumber(raw) {
     let s = String(raw == null ? '' : raw).trim().replace(/^puja\s*/i, '').replace(/[\s,_'’]/g, '');
     if (!s) return { error: 'Enter a Puja number, like 5000 or 98765432101234567890.' };
+    if (/\u2026|\.{2,}/.test(s)) return { error: 'That number contains \u201c\u2026\u201d, so some digits are missing. Paste the complete number.' };
     if (!/^\d+$/.test(s)) return { error: 'Use whole numbers only, like 5000 or 98765432101234567890.' };
     s = s.replace(/^0+(?=\d)/, '');
     if (s === '0') return { error: 'Puja numbers start at 1.' };
@@ -553,6 +588,7 @@
   /* ---- keyboard on the scroller ---- */
   vp.addEventListener('keydown', (e) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.target !== vp) return;
+    if (cardH > H + 16 && e.key !== 'Home') return;   // card taller than the screen: arrows scroll normally
     if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); stepBy(1); }
     else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); stepBy(-1); }
     else if (e.key === 'Home') { e.preventDefault(); jumpTo(1n); }
