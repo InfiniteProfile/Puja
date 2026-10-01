@@ -3,82 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PUJA — Infinite Profile Universe</title>
+    <title>Puja — Infinite Profile Generator</title>
+    <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Top Navigation Header -->
-    <header class="puja-header">
-        <div class="brand-group">
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+        <div class="brand-container">
             <h1 class="brand-title">PUJA</h1>
-            <span class="brand-subtitle">Infinite Universe</span>
+            <span class="brand-subtitle">INFINITE PROFILE UNIVERSE</span>
         </div>
         <div class="nav-controls">
-            <div class="profile-badge">
-                <span class="badge-label">PROFILE</span>
-                <span id="current-profile-display" class="badge-value">#1</span>
+            <div class="current-indicator">
+                <span class="indicator-label">CURRENT PROFILE</span>
+                <span id="current-badge" class="indicator-value">Puja 1</span>
             </div>
-            <button id="jump-btn" class="nav-btn" aria-label="Jump to Profile">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <span>Jump</span>
-            </button>
-            <button id="info-btn" class="nav-btn icon-only" aria-label="About Puja">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-            </button>
+            <button id="jump-btn" class="gold-btn" title="Jump to specific profile number">Jump to Puja</button>
         </div>
     </header>
 
-    <!-- Main Virtualized Viewport -->
-    <main id="viewport" class="puja-viewport" role="feed" aria-label="Infinite Profile Universe">
-        <div id="spacer-top" class="virtual-spacer" style="height: 0px;"></div>
-        <div id="cards-container" class="cards-container">
-            <!-- Dynamically recycled profile cards will mount here -->
-        </div>
-        <div id="spacer-bottom" class="virtual-spacer" style="height: 0px;"></div>
+    <!-- Main Virtualized Workspace -->
+    <main class="viewport-container" id="viewport">
+        <!-- Spacer element that mimics the total physical height of the virtual list -->
+        <div id="virtual-spacer" class="virtual-spacer"></div>
+        <!-- Active rendering container containing recycled profile cards -->
+        <div id="card-container" class="card-container"></div>
     </main>
 
-    <!-- Jump to Profile Modal -->
-    <div id="jump-modal" class="modal-overlay" aria-hidden="true">
+    <!-- Jump Modal Dialog -->
+    <div id="jump-modal" class="modal-overlay hidden">
         <div class="modal-card">
-            <div class="modal-header">
-                <h2>Jump to Profile Universe</h2>
-                <button id="modal-close" class="close-btn" aria-label="Close Modal">&times;</button>
-            </div>
-            <p class="modal-desc">Enter any profile index up to arbitrarily large numbers (BigInt supported, e.g., <code>9007199254740992</code> or <code>1000000000000</code>).</p>
-            <div class="modal-input-group">
-                <span class="prefix">#</span>
-                <input type="text" id="jump-input" placeholder="1, 50000, 9007199254740992..." autocomplete="off" inputmode="numeric">
-            </div>
+            <h3>Jump to Sequence Index</h3>
+            <p>Enter any integer up to practically infinite scales (supports BigInt &gt; 9.2 quintillion):</p>
+            <input type="text" id="jump-input" placeholder="e.g. 5000000 or 9007199254740992" autocomplete="off">
             <div class="modal-actions">
-                <button id="jump-cancel" class="btn btn-secondary">Cancel</button>
-                <button id="jump-submit" class="btn btn-primary">Navigate</button>
+                <button id="modal-cancel" class="btn-secondary">Cancel</button>
+                <button id="modal-confirm" class="gold-btn">Teleport</button>
             </div>
         </div>
     </div>
 
-    <!-- About / Info Modal -->
-    <div id="info-modal" class="modal-overlay" aria-hidden="true">
-        <div class="modal-card info-card">
-            <div class="modal-header">
-                <h2>About Puja Universe</h2>
-                <button id="info-close" class="close-btn" aria-label="Close Modal">&times;</button>
-            </div>
-            <div class="modal-body-scroll">
-                <p><strong>PUJA</strong> is an effectively unbounded, virtualized profile architecture. It renders an infinite sequence of unique human profiles while keeping memory and DOM footprints strictly bounded.</p>
-                <ul>
-                    <li><strong>Deterministic Generation:</strong> Every profile is derived on-demand from its BigInt ID using robust hashing. Revisiting any profile ID reconstructs the exact same identity.</li>
-                    <li><strong>True Virtualization:</strong> Only a small pool of DOM nodes is maintained and recycled as you scroll across quadrillions of profiles.</li>
-                    <li><strong>BigInt Precision:</strong> Operates seamlessly beyond JavaScript's safe integer limit (`Number.MAX_SAFE_INTEGER`).</li>
-                </ul>
-            </div>
-            <div class="modal-actions">
-                <button id="info-dismiss" class="btn btn-primary">Explore Universe</button>
-            </div>
-        </div>
-    </div>
+    <!-- Footer Status Bar -->
+    <footer class="app-footer">
+        <span>Logical State: Unbounded BigInt</span>
+        <span class="dot">•</span>
+        <span>DOM Nodes: Bounded & Recycled</span>
+        <span class="dot">•</span>
+        <span>Zero Memory Leak Architecture</span>
+    </footer>
 
     <script src="script.js"></script>
 </body>
