@@ -1,539 +1,568 @@
-/**
- * PUJA — INFINITE PROFILE GENERATOR
- * Core Client-Side Virtualized Architecture with BigInt & DOM Recycling
- */
+/* PUJA — Infinite Profile Generator
+ * Every profile is a pure function of its BigInt number.
+ * The page keeps only a small, fixed ring of cards in the DOM and recycles them while scrolling. */
+(() => {
+  'use strict';
 
-(function () {
-    'use strict';
+  if (typeof BigInt !== 'function') {
+    const n = document.getElementById('unsupported');
+    if (n) n.hidden = false;
+    return;
+  }
 
-    // --- Configuration & Constants ---
-    const CONFIG = {
-        cardHeight: 560,          // Approximate card height including gap
-        bufferCount: 5,           // Overscan buffer cards above and below viewport
-        maxCacheSize: 150,        // LRU Cache maximum size for profile data
-        recenteringThreshold: 1000000n // Recenter physical offset when logical index exceeds this range
+  /* ================= Profile generation (pure, deterministic) ================= */
+
+  const PLACES = ['Kolkata, India','Jaipur, India','Pune, India','Kochi, India','Lisbon, Portugal','Porto, Portugal','Kyoto, Japan','Osaka, Japan','Seoul, South Korea','Singapore','Bangkok, Thailand','Hanoi, Vietnam','Nairobi, Kenya','Accra, Ghana','Cape Town, South Africa','Marrakesh, Morocco','Cairo, Egypt','Istanbul, Türkiye','Athens, Greece','Naples, Italy','Florence, Italy','Vienna, Austria','Prague, Czechia','Copenhagen, Denmark','Reykjavik, Iceland','Edinburgh, Scotland','Dublin, Ireland','Lyon, France','Seville, Spain','Amsterdam, Netherlands','Toronto, Canada','Montréal, Canada','Mexico City, Mexico','Oaxaca, Mexico','Bogotá, Colombia','Lima, Peru','Buenos Aires, Argentina','São Paulo, Brazil','Santiago, Chile','Austin, USA','Portland, USA','New Orleans, USA','Savannah, USA','Sydney, Australia','Melbourne, Australia','Wellington, New Zealand','Dubai, UAE','Tbilisi, Georgia'];
+
+  const JOBS = ['Clockmaker','Bookbinder','Marine biologist','Luthier','Cartographer','Pastry chef','Architect','Botanist','Glassblower','Radio host','Astronomer','Textile designer','Potter','Sound engineer','Pediatric nurse','Urban planner','Calligrapher','Beekeeper','Chemist','Violinist','Tailor','Archivist','Landscape painter','Sailmaker','Perfumer','Film editor','Linguist','Ceramicist','Mountain guide','Furniture maker','Illustrator','Seismologist','Tea blender','Typographer','Piano tuner','Veterinarian','Jeweller','Journalist','Choreographer','Ornithologist','Stonemason','Chocolatier','Game designer','Paleontologist','Sommelier','Set designer','Translator','Gardener'];
+
+  const INTERESTS = ['Monsoon walks','Vinyl records','Chess endgames','Night markets','Slow cooking','Stargazing','Sketching','Old maps','Jazz','Street photography','Bird watching','Embroidery','Cycling','Tea ceremonies','Pottery','Poetry','Sailing','Foraging','Mythology','Film noir','Calligraphy','Rock climbing','Fermentation','Letterpress','Origami','Opera','Antique clocks','Folk songs','Mountain trails','Board games','Kite flying','Marathon training','Weaving','Rare plants','Typewriters','Classical dance','Sourdough','Tide pools','Handwritten letters','Rainy afternoons','Language learning','Vintage cameras','Woodcarving','Spice blending','Ink and quill','Observatories','Lantern festivals','Salt flats','Mosaic art','Podcasts','Puppet theatre','Cooking for friends','Scrapbooking','Oral histories','Harbour sunsets','Crosswords','Bookshops','Wild swimming','Kitchen gardens','Brass bands','Paper marbling','Architecture walks','Chai stalls','Lighthouses'];
+
+  const OPENERS = ['Happiest when lost in','Forever chasing','Quietly obsessed with','Collects stories about','Weekends belong to','Always making time for','Finds calm in','Rarely seen without','Currently deep into','Believes in'];
+
+  const CLOSERS = ['Ask about the long way home.','Tea first, then everything else.','Always up for a good detour.','Notes everything in the margins.','Keeps a candle lit for late-night talks.','Will trade recipes for stories.','Collecting small wonders, one day at a time.','Soft spoken, sharp memory.','Says yes to sunrise plans.','Writes the good ideas down.','Happily offline on Sundays.','Open to a conversation anytime.'];
+
+  const PALETTES = [
+    { c1: '#7b1e2b', c2: '#c4586a', rgb: '123, 30, 43' },  // burgundy
+    { c1: '#4b2a7a', c2: '#9570cc', rgb: '75, 42, 122' },   // royal purple
+    { c1: '#1c3f7a', c2: '#5b8bd0', rgb: '28, 63, 122' },   // deep blue
+    { c1: '#0f6b4f', c2: '#43b38a', rgb: '15, 107, 79' },   // emerald
+    { c1: '#7a560f', c2: '#d9ac3f', rgb: '122, 86, 15' },   // antique gold
+    { c1: '#8a3a14', c2: '#d8814a', rgb: '138, 58, 20' }    // copper
+  ];
+
+  const SKIN = ['#f3d2b3', '#e8b98d', '#d49b6a', '#b97a4c', '#94593a', '#6e3f27'];
+  const HAIR = ['#1d1410', '#3a2416', '#5a3a22', '#8a5a2b', '#b8863b', '#2c2c3a', '#7a2a2a', '#c9c1b0'];
+  const CLOTH = ['#2b1d3f', '#14305e', '#0b4a38', '#5e1520', '#3a2a18', '#222a35', '#7a3a12', '#1e4a55'];
+  const GOLD = '#d9ae45';
+  const DARK = '#2b1a12';
+
+  /* 128-bit hash of a BigInt, folded 32 bits at a time (cyrb128 style). Works for any size. */
+  function seedFrom(n) {
+    const hex = n.toString(16);
+    const s = hex.padStart(Math.ceil(hex.length / 8) * 8, '0');
+    let h1 = 0x243f6a88, h2 = 0x85a308d3, h3 = 0x13198a2e, h4 = 0x03707344;
+    for (let i = 0; i < s.length; i += 8) {
+      const k = parseInt(s.substr(i, 8), 16) | 0;
+      h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+      h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+      h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+      h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+    }
+    h1 ^= s.length; h2 ^= s.length >>> 3;
+    h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+    h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+    h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+    h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+    return [(h1 ^ h2 ^ h3 ^ h4) >>> 0, (h2 ^ h1) >>> 0, (h3 ^ h1) >>> 0, (h4 ^ h1) >>> 0];
+  }
+
+  /* sfc32: integer-only PRNG, identical on every engine. */
+  function makeRng(a, b, c, d) {
+    const next = () => {
+      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+      let t = (a + b) | 0;
+      a = b ^ (b >>> 9);
+      b = (c + (c << 3)) | 0;
+      c = (c << 21) | (c >>> 11);
+      d = (d + 1) | 0;
+      t = (t + d) | 0;
+      c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
     };
+    for (let i = 0; i < 15; i++) next();
+    return next;
+  }
 
-    // --- Deterministic Seeded Generator Helpers (PCG / Murmur-like hash) ---
-    function hashBigIntToNumber(n) {
-        let x = n ^ (n >> 30n);
-        x = x * 0xbf58476d1ce4e5b9n;
-        x = x ^ (x >> 27n);
-        x = x * 0x94d049bb133111ebn;
-        x = x ^ (x >> 31n);
-        return Number(x & 0x7fffffffffffffffn);
+  function avatarSvg(pick, r, pal) {
+    const skin = pick(SKIN), hair = pick(HAIR), cloth = pick(CLOTH);
+    const style = (r() * 5) | 0, acc = (r() * 4) | 0, mouth = (r() * 3) | 0;
+    const sx = 20 + ((r() * 60) | 0), sy = 14 + ((r() * 26) | 0), sr = 10 + ((r() * 14) | 0);
+    const brow = style === 4 ? DARK : hair;
+
+    let s = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">';
+    s += `<rect width="100" height="100" fill="${pal.c2}"/>`;
+    s += `<circle cx="${sx}" cy="${sy}" r="${sr}" fill="#fff" opacity=".16"/>`;
+    s += '<path d="M0 80Q30 62 55 74T100 68V100H0Z" fill="#000" opacity=".12"/>';
+    if (style === 1) s += `<path d="M29 48C24 22 40 14 50 14S76 22 71 48C73 64 70 76 66 84L34 84C30 76 27 64 29 48Z" fill="${hair}"/>`;
+    s += `<path d="M10 100C12 78 30 70 50 70S88 78 90 100Z" fill="${cloth}"/>`;
+    s += `<rect x="43" y="56" width="14" height="19" rx="6" fill="${skin}"/>`;
+    s += '<rect x="43" y="56" width="14" height="9" rx="4" fill="#000" opacity=".12"/>';
+    s += `<path d="M41 71L50 82L59 71" fill="none" stroke="${GOLD}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    s += `<circle cx="33" cy="48" r="3.3" fill="${skin}"/><circle cx="67" cy="48" r="3.3" fill="${skin}"/>`;
+    s += `<ellipse cx="50" cy="46" rx="17" ry="20" fill="${skin}"/>`;
+
+    if (style === 0 || style === 2) s += `<path d="M32 46C29 24 43 17 50 17S71 24 68 46C65 36 58 31 50 31S35 36 32 46Z" fill="${hair}"/>`;
+    if (style === 2) s += `<circle cx="50" cy="13" r="8" fill="${hair}"/>`;
+    if (style === 1) s += `<path d="M32 43C35 27 65 27 68 43C60 35 40 35 32 43Z" fill="${hair}"/>`;
+    if (style === 3) {
+      s += `<g fill="${hair}"><circle cx="38" cy="30" r="9"/><circle cx="46" cy="25" r="9"/><circle cx="54" cy="25" r="9"/><circle cx="62" cy="30" r="9"/><circle cx="33" cy="38" r="7"/><circle cx="67" cy="38" r="7"/><circle cx="50" cy="29" r="9"/></g>`;
+    }
+    if (style === 4) {
+      s += `<path d="M31 42C29 17 71 17 69 42C60 35 40 35 31 42Z" fill="${GOLD}"/>`;
+      s += '<path d="M33 35Q50 28 67 35" fill="none" stroke="#fff" stroke-width="1.5" opacity=".45"/>';
     }
 
-    class DeterministicRNG {
-        constructor(seedBigInt) {
-            this.state = hashBigIntToNumber(seedBigInt);
-            if (this.state === 0) this.state = 1337;
-        }
-        nextFloat() {
-            this.state = (this.state * 1664525 + 1013904223) >>> 0;
-            return this.state / 4294967296;
-        }
-        nextInt(min, max) {
-            return Math.floor(this.nextFloat() * (max - min + 1)) + min;
-        }
-        pick(array) {
-            return array[this.nextInt(0, array.length - 1)];
-        }
+    s += `<path d="M38.5 41.5Q43 39 47 41M53 41Q57 39 61.5 41.5" fill="none" stroke="${brow}" stroke-width="1.7" stroke-linecap="round"/>`;
+    s += `<circle cx="43" cy="47" r="1.7" fill="${DARK}"/><circle cx="57" cy="47" r="1.7" fill="${DARK}"/>`;
+    s += '<circle cx="39" cy="53" r="3.4" fill="#e0524a" opacity=".16"/><circle cx="61" cy="53" r="3.4" fill="#e0524a" opacity=".16"/>';
+    if (mouth === 0) s += `<path d="M44 54Q50 60 56 54" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/>`;
+    else if (mouth === 1) s += `<path d="M45 55Q50 58 55 55" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/>`;
+    else s += `<path d="M44 54.5Q50 57 56 54" fill="none" stroke="${DARK}" stroke-width="1.6" stroke-linecap="round"/><circle cx="56.6" cy="54.2" r=".9" fill="${DARK}"/>`;
+
+    if (acc === 1) s += `<g fill="none" stroke="${DARK}" stroke-width="1.4"><circle cx="43" cy="47" r="5.4"/><circle cx="57" cy="47" r="5.4"/><path d="M48.4 47H51.6"/></g>`;
+    else if (acc === 2) s += `<circle cx="32.6" cy="54" r="1.9" fill="${GOLD}"/><circle cx="67.4" cy="54" r="1.9" fill="${GOLD}"/>`;
+    else if (acc === 3) s += `<circle cx="50" cy="83" r="2.5" fill="${GOLD}" stroke="#fff" stroke-opacity=".5" stroke-width=".6"/>`;
+    return s + '</svg>';
+  }
+
+  function compact(v) {
+    if (v < 1000) return String(v);
+    if (v < 1e6) { const x = v / 1000; return (x < 10 ? x.toFixed(1).replace(/\.0$/, '') : String(Math.round(x))) + 'K'; }
+    const x = v / 1e6;
+    return (x < 10 ? x.toFixed(1).replace(/\.0$/, '') : String(Math.round(x))) + 'M';
+  }
+
+  /** Same BigInt in → same profile out. Integer math only, so it matches across devices. */
+  function makeProfile(n) {
+    const r = makeRng.apply(null, seedFrom(n));
+    const pick = (arr) => arr[(r() * arr.length) | 0];
+    const pal = pick(PALETTES);
+    const job = pick(JOBS);
+    const loc = pick(PLACES);
+
+    const pool = INTERESTS.slice();
+    const count = 3 + ((r() * 2) | 0);
+    const interests = [];
+    for (let i = 0; i < count; i++) {
+      const j = i + ((r() * (pool.length - i)) | 0);
+      const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+      interests.push(pool[i]);
     }
+    const bio = `${job} by trade. ${pick(OPENERS)} ${interests[0].toLowerCase()} and ${interests[1].toLowerCase()}. ${pick(CLOSERS)}`;
 
-    // --- Data Dictionaries for Deterministic Generation ---
-    const PROFESSIONS = [
-        "Digital Architect", "UI/UX Artisan", "Creative Technologist", "Full-Stack Scholar",
-        "Systems Analyst", "Neural Network Researcher", "Quantum Enthusiast", "Visual Designer",
-        "Open Source Advocate", "Data Sculptor", "Minimalist Coder", "Cyberneticist",
-        "Autonomous Creator", "Algorithm Poet", "Interface Engineer", "Cloud Infrastructure Lead"
-    ];
+    const followers = (100 + ((r() * 900) | 0)) * [1, 10, 100, 1000][(r() * 4) | 0];
+    const following = (20 + ((r() * 980) | 0)) * [1, 1, 10][(r() * 3) | 0];
+    const posts = (8 + ((r() * 500) | 0)) * (r() < 0.3 ? 4 : 1);
 
-    const LOCATIONS = [
-        "Kyoto, Japan", "Reykjavik, Iceland", "Zurich, Switzerland", "Stockholm, Sweden",
-        "Wellington, New Zealand", "Singapore, SG", "Helsinki, Finland", "Oslo, Norway",
-        "Copenhagen, Denmark", "Vienna, Austria", "Montreal, Canada", "Berlin, Germany",
-        "Amsterdam, Netherlands", "Edinburgh, Scotland", "San Francisco, USA", "Dublin, Ireland"
-    ];
-
-    const INTEREST_POOL = [
-        "TypeScript", "Rust", "Architecture", "Design Systems", "Generative Art", "Cybernetics",
-        "Astrophysics", "Minimalism", "Typography", "Audio Synthesis", "Machine Learning", "Linux",
-        "Photography", "Philosophy", "Cryptography", "Distributed Systems", "UI Animation", "Open Source"
-    ];
-
-    const BIO_TEMPLATES = [
-        "Exploring the intersection of elegant code and minimalist design principles.",
-        "Building resilient digital systems and high-performance interfaces.",
-        "Passionate about clean architecture, open source, and generative aesthetics.",
-        "Crafting seamless user experiences with modern web standards.",
-        "Dedicated to simplicity, efficiency, and timeless digital craftsmanship.",
-        "Investigating complex distributed systems and autonomous agent workflows.",
-        "Balancing rigorous engineering with refined visual expression."
-    ];
-
-    // --- Avatar SVG Generator ---
-    function generateAvatarSVG(seedNum, name) {
-        const rng = new DeterministicRNG(seedNum);
-        const hue = rng.nextInt(0, 360);
-        const sat = rng.nextInt(40, 70);
-        const lit = rng.nextInt(20, 35);
-        
-        const color1 = `hsl(${hue}, ${sat}%, ${lit}%)`;
-        const color2 = `hsl(${(hue + 60) % 360}, ${sat}%, ${lit - 10}%)`;
-        const goldAccent = '#D4AF37';
-
-        const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2);
-
-        return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-            <defs>
-                <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="${color1}"/>
-                    <stop offset="100%" stop-color="${color2}"/>
-                </linearGradient>
-            </defs>
-            <circle cx="60" cy="60" r="60" fill="url(%23g)"/>
-            <circle cx="60" cy="60" r="56" fill="none" stroke="${goldAccent}" stroke-width="1.5" stroke-opacity="0.6"/>
-            <text x="60" y="65" font-family="-apple-system, sans-serif" font-size="36" font-weight="700" fill="%23F5F5F5" text-anchor="middle" dominant-baseline="middle">${initials}</text>
-        </svg>`;
-    }
-
-    // --- Profile Data Generator ---
-    function generateProfileData(profileId) {
-        const rng = new DeterministicRNG(profileId);
-        const name = `Puja ${profileId.toString()}`;
-        const handle = `@puja${profileId.toString().toLowerCase()}`;
-        
-        const profession = rng.pick(PROFESSIONS);
-        const location = rng.pick(LOCATIONS);
-        const bio = rng.pick(BIO_TEMPLATES);
-
-        // Pick 3 unique interests
-        const shuffledInterests = [...INTEREST_POOL].sort(() => rng.nextFloat() - 0.5);
-        const interests = shuffledInterests.slice(0, 3);
-
-        // Statistics
-        const followersNum = rng.nextInt(120, 98900);
-        const followingNum = rng.nextInt(40, 2400);
-        const postsNum = rng.nextInt(12, 1450);
-
-        function formatCount(num) {
-            if (num >= 1000) {
-                return (num / 1000).toFixed(1) + 'K';
-            }
-            return num.toString();
-        }
-
-        return {
-            id: profileId,
-            name,
-            handle,
-            avatar: generateAvatarSVG(profileId, name),
-            profession,
-            location,
-            bio,
-            interests,
-            followers: formatCount(followersNum),
-            following: formatCount(followingNum),
-            posts: formatCount(postsNum)
-        };
-    }
-
-    // --- LRU Cache ---
-    class ProfileCache {
-        constructor(maxSize) {
-            this.maxSize = maxSize;
-            this.cache = new Map();
-        }
-        get(id) {
-            const key = id.toString();
-            if (!this.cache.has(key)) return null;
-            const value = this.cache.get(key);
-            this.cache.delete(key);
-            this.cache.set(key, value); // Refresh position
-            return value;
-        }
-        set(id, value) {
-            const key = id.toString();
-            if (this.cache.has(key)) {
-                this.cache.delete(key);
-            } else if (this.cache.size >= this.maxSize) {
-                const oldestKey = this.cache.keys().next().value;
-                this.cache.delete(oldestKey);
-            }
-            this.cache.set(key, value);
-        }
-        size() {
-            return this.cache.size;
-        }
-    }
-
-    // --- Application State ---
-    const profileCache = new ProfileCache(CONFIG.maxCacheSize);
-
-    let state = {
-        currentLogicalIndex: 1n,
-        physicalScrollTop: 0,
-        viewportHeight: window.innerHeight,
-        isDevMode: false,
-        isRestoringUrl: true
+    return {
+      pal, job, loc, interests, bio,
+      stats: [compact(followers), compact(following), compact(posts)],
+      avatar: avatarSvg(pick, r, pal)
     };
+  }
 
-    // --- DOM Elements ---
-    const viewportContainer = document.getElementById('viewport-container');
-    const virtualSpacer = document.getElementById('virtual-spacer');
-    const profileStream = document.getElementById('profile-stream');
-    const currentPujaIndicator = document.getElementById('current-puja-number');
-    const jumpInput = document.getElementById('jump-input');
-    const jumpBtn = document.getElementById('jump-btn');
-    const devToggleBtn = document.getElementById('dev-toggle-btn');
-    const perfMonitor = document.getElementById('perf-monitor');
-    const toast = document.getElementById('toast');
+  /* ==== UI ==== */
 
-    // Perf metrics elements
-    const perfDomCount = document.getElementById('perf-dom-count');
-    const perfLogical = document.getElementById('perf-logical');
-    const perfScroll = document.getElementById('perf-scroll');
-    const perfCache = document.getElementById('perf-cache');
+  const BUF = 3;            // cards kept above the viewport
+  const MAX_W = 28;         // hard cap on cards in the DOM
+  const MAX_DIGITS = 100000;
+  const CACHE_MAX = 64;
+  const FULL_DIGITS = 96;   // longest number shown in full on a card
 
-    // --- Card Pool for DOM Recycling ---
-    const physicalCards = [];
-    let physicalCardCount = 12; // Initial physical cards pool
+  const $ = (id) => document.getElementById(id);
+  const vp = $('viewport'), track = $('track'), nowEl = $('now');
+  const form = $('jump-form'), input = $('jump-input'), errEl = $('jump-error');
+  const btnPrev = $('btn-prev'), btnNext = $('btn-next'), btnCopy = $('btn-copy'), btnShare = $('btn-share');
+  const toastEl = $('toast');
+  const reduceMq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
-    function initPhysicalPool() {
-        profileStream.innerHTML = '';
-        physicalCards.length = 0;
+  /* ---- small LRU cache of generated profiles ---- */
+  const cache = new Map();
+  function getProfile(n, s) {
+    let p = cache.get(s);
+    if (p) { cache.delete(s); cache.set(s, p); return p; }
+    p = makeProfile(n);
+    cache.set(s, p);
+    if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+    return p;
+  }
 
-        // Calculate dynamic pool size based on viewport height
-        const calculatedCount = Math.ceil(window.innerHeight / CONFIG.cardHeight) + (CONFIG.bufferCount * 2);
-        physicalCardCount = Math.max(10, calculatedCount);
+  function short(s, max) {
+    if (s.length <= max) return s;
+    const head = Math.ceil((max - 1) / 2), tail = Math.floor((max - 1) / 2);
+    return s.slice(0, head) + '…' + s.slice(s.length - tail);
+  }
 
-        for (let i = 0; i < physicalCardCount; i++) {
-            const cardEl = document.createElement('article');
-            cardEl.className = 'profile-card';
-            cardEl.innerHTML = `
-                <div class="card-avatar-wrapper">
-                    <img class="card-avatar" src="" alt="Avatar" loading="lazy">
-                </div>
-                <div class="card-identity">
-                    <h2 class="card-name"></h2>
-                    <span class="card-handle"></span>
-                </div>
-                <p class="card-bio"></p>
-                <div class="card-meta">
-                    <span class="card-location"></span>
-                    <span class="separator">·</span>
-                    <span class="card-profession"></span>
-                </div>
-                <div class="card-interests"></div>
-                <div class="card-stats">
-                    <div class="stat-item">
-                        <span class="stat-value stat-followers"></span>
-                        <span class="stat-label">Followers</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value stat-following"></span>
-                        <span class="stat-label">Following</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value stat-posts"></span>
-                        <span class="stat-label">Posts</span>
-                    </div>
-                </div>
-                <div class="card-actions">
-                    <button class="btn btn-primary action-view" type="button">View Profile</button>
-                    <button class="btn action-share" type="button">Share</button>
-                </div>
-            `;
+  /* ---- DOM pool ---- */
+  function createSlot() {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.innerHTML =
+      '<article class="card">' +
+        '<div class="banner"><div class="avatar"><span class="ring"></span><span class="portrait"></span></div></div>' +
+        '<div class="body">' +
+          '<h2 class="name"></h2>' +
+          '<p class="idnote" hidden></p>' +
+          '<p class="meta"><span class="job"></span><span class="loc"></span></p>' +
+          '<p class="bio"></p>' +
+          '<ul class="chips"><li></li><li></li><li></li><li></li></ul>' +
+          '<dl class="stats"><div><dt>Followers</dt><dd></dd></div><div><dt>Following</dt><dd></dd></div><div><dt>Posts</dt><dd></dd></div></dl>' +
+        '</div>' +
+      '</article>';
+    const q = (sel) => slot.querySelector(sel);
+    slot._r = {
+      card: q('.card'), portrait: q('.portrait'), name: q('.name'), note: q('.idnote'),
+      job: q('.job'), loc: q('.loc'), bio: q('.bio'),
+      chips: slot.querySelectorAll('.chips li'), stats: slot.querySelectorAll('.stats dd')
+    };
+    slot._s = '';
+    slot._p = null;
+    return slot;
+  }
 
-            // Attach event listeners for card actions
-            const viewBtn = cardEl.querySelector('.action-view');
-            const shareBtn = cardEl.querySelector('.action-share');
+  function fill(slot, n) {
+    const s = n.toString();
+    if (slot._s === s) return;
+    slot._s = s;
+    const p = getProfile(n, s);
+    slot._p = p;
+    const r = slot._r;
+    const shown = short(s, FULL_DIGITS);
 
-            viewBtn.addEventListener('click', () => {
-                const profileId = cardEl._profileId;
-                if (profileId) showToast(`Loaded ${profileId === 1n ? 'Puja 1' : 'Puja ' + profileId.toString()}`);
-            });
+    r.card.style.setProperty('--ac1', p.pal.c1);
+    r.card.style.setProperty('--ac2', p.pal.c2);
+    r.card.style.setProperty('--ac1-rgb', p.pal.rgb);
+    r.card.setAttribute('aria-label', 'Puja ' + short(s, 40));
+    if (s.length > 40) r.card.setAttribute('data-long', ''); else r.card.removeAttribute('data-long');
 
-            shareBtn.addEventListener('click', () => {
-                const profileId = cardEl._profileId;
-                if (profileId) {
-                    const url = `${window.location.origin}${window.location.pathname}?puja=${profileId.toString()}`;
-                    navigator.clipboard.writeText(url).then(() => {
-                        showToast(`Copied share link for Puja ${profileId.toString()}`);
-                    }).catch(() => {
-                        showToast(`Puja ${profileId.toString()} link ready`);
-                    });
-                }
-            });
+    r.name.textContent = 'Puja ' + shown;
+    r.name.dataset.size = shown.length <= 7 ? '1' : shown.length <= 12 ? '2' : shown.length <= 20 ? '3' : shown.length <= 40 ? '4' : '5';
+    r.name.title = s.length > FULL_DIGITS ? 'Puja ' + s.slice(0, 2000) + (s.length > 2000 ? '…' : '') : '';
+    if (s.length > FULL_DIGITS) { r.note.textContent = s.length.toLocaleString() + ' digits'; r.note.hidden = false; }
+    else r.note.hidden = true;
 
-            profileStream.appendChild(cardEl);
-            physicalCards.push({
-                element: cardEl,
-                currentProfileId: null,
-                token: 0
-            });
-        }
+    r.job.textContent = p.job;
+    r.loc.textContent = p.loc;
+    r.bio.textContent = p.bio;
+    for (let i = 0; i < r.chips.length; i++) {
+      const t = p.interests[i];
+      if (t) { r.chips[i].textContent = t; r.chips[i].hidden = false; } else r.chips[i].hidden = true;
+    }
+    for (let i = 0; i < 3; i++) r.stats[i].textContent = p.stats[i];
+    r.portrait.innerHTML = p.avatar;
+  }
+
+  /* ---- state ---- */
+  let base = 1n;      // number of the first card in the DOM
+  let W = 0;          // cards in the DOM
+  let H = 0, pitch = 0, gap = 0, cardH = 0, wide = false;
+  let curNode = null, curIdx = 0, curStr = '', curBig = 1n, curProfile = null;
+  let raf = 0, rlRaf = 0, urlTimer = 0, urlStr = '', toastTimer = 0;
+  let anim = 0, shiftAcc = 0;
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  function clearCur() {
+    if (curNode) { curNode.classList.remove('is-current'); curNode = null; }
+  }
+
+  function fillAll() {
+    const kids = track.children;
+    let n = base;
+    for (let i = 0; i < kids.length; i++) { fill(kids[i], n); n += 1n; }
+  }
+
+  /* Scroll offset that presents card `i` nicely (centered, or top-aligned if taller than the viewport). */
+  function topFor(i) {
+    const cardTop = i * pitch + gap / 2;
+    return cardH <= H ? cardTop - (H - cardH) / 2 : cardTop - 8;
+  }
+
+  /* Remove k cards at the top, recycle them at the bottom. Scroll offset is corrected in the same task. */
+  function shiftDown(k) {
+    let n = base + BigInt(W);
+    for (let i = 0; i < k; i++) {
+      const node = track.firstElementChild;
+      if (node === curNode) clearCur();
+      fill(node, n); n += 1n;
+      track.appendChild(node);
+    }
+    base += BigInt(k);
+    vp.scrollTop -= k * pitch;
+    shiftAcc -= k * pitch;
+  }
+
+  /* Recycle k cards from the bottom to the top. */
+  function shiftUp(k) {
+    let n = base - 1n;
+    for (let i = 0; i < k; i++) {
+      const node = track.lastElementChild;
+      if (node === curNode) clearCur();
+      fill(node, n); n -= 1n;
+      track.insertBefore(node, track.firstElementChild);
+    }
+    base -= BigInt(k);
+    vp.scrollTop += k * pitch;
+    shiftAcc += k * pitch;
+  }
+
+  function sync() {
+    raf = 0;
+    const st = vp.scrollTop;
+    if (st >= 0 && st <= vp.scrollHeight - vp.clientHeight + 1) {   // ignore rubber-band overscroll
+      const above = Math.floor(st / pitch);
+      if (above >= BUF + 2) {
+        shiftDown(clamp(above - BUF, 1, W - 1));
+      } else if (above <= BUF - 2 && base > 1n) {
+        const room = base > BigInt(BUF) ? BUF : Number(base - 1n);
+        const k = Math.min(BUF - above, room);
+        if (k > 0) shiftUp(k);
+      }
+    }
+    updateCurrent();
+  }
+
+  function schedule() { if (!raf) raf = requestAnimationFrame(sync); }
+
+  function updateCurrent() {
+    let idx = Math.floor((vp.scrollTop + H / 2) / pitch);
+    idx = clamp(idx, 0, W - 1);
+    const node = track.children[idx];
+    if (!node) return;
+    curIdx = idx;
+    curBig = base + BigInt(idx);
+    if (node === curNode) return;
+    if (curNode) curNode.classList.remove('is-current');
+    curNode = node;
+    node.classList.add('is-current');
+    curStr = node._s;
+    curProfile = node._p;
+
+    nowEl.textContent = 'Puja ' + short(curStr, 26);
+    nowEl.title = 'Puja ' + (curStr.length > 400 ? short(curStr, 400) : curStr);
+    document.title = 'Puja ' + short(curStr, 30) + ' — PUJA Infinite Profile Generator';
+    btnPrev.disabled = curStr === '1';
+
+    if (curStr !== urlStr) {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(writeUrl, 300);
+    }
+  }
+
+  /* ---- sizing ---- */
+  function measure() {
+    const h = vp.clientHeight, w = vp.clientWidth;
+    const isWide = w >= 720;
+    let g, ch;
+    if (isWide) { g = 28; ch = clamp(Math.round((h * 0.8) / 8) * 8, 340, 460); }
+    else { g = 20; ch = clamp(Math.round((h * 0.9) / 8) * 8, 520, 680); }
+    return { H: h, wide: isWide, gap: g, cardH: ch, pitch: ch + g };
+  }
+
+  function playEnter(centerIdx) {
+    if (reduceMq.matches) return;
+    const kids = track.children;
+    for (let i = 0; i < kids.length; i++) {
+      kids[i].style.setProperty('--i', Math.min(Math.abs(i - centerIdx), 4));
+      kids[i].classList.remove('enter');
+    }
+    void track.offsetWidth;
+    for (let i = 0; i < kids.length; i++) kids[i].classList.add('enter');
+  }
+
+  track.addEventListener('animationend', (e) => {
+    if (e.animationName === 'pop') {
+      const slot = e.target.closest && e.target.closest('.slot');
+      if (slot) slot.classList.remove('enter');
+    }
+  });
+
+  function relayout(first, startN) {
+    const m = measure();
+    if (m.H <= 0 || vp.clientWidth <= 0) return;
+    const nW = Math.min(Math.ceil(m.H / m.pitch) + 1 + 2 * BUF, MAX_W);
+    if (!first && m.pitch === pitch && m.wide === wide && nW === W) { H = m.H; schedule(); return; }
+
+    let anchor, frac = 0.5;
+    if (first) anchor = startN;
+    else {
+      const pos = (vp.scrollTop + H / 2) / pitch;
+      const idx = clamp(Math.floor(pos), 0, W - 1);
+      frac = pos - idx;
+      anchor = base + BigInt(idx);
     }
 
-    // --- Virtualization Engine ---
-    function updateVirtualWindow() {
-        const scrollTop = viewportContainer.scrollTop;
-        state.physicalScrollTop = scrollTop;
+    cancelAnim();
+    H = m.H; pitch = m.pitch; gap = m.gap; cardH = m.cardH; wide = m.wide; W = nW;
+    vp.dataset.layout = wide ? 'wide' : 'tall';
+    vp.style.setProperty('--card-h', cardH + 'px');
+    vp.style.setProperty('--gap', gap + 'px');
+    vp.style.setProperty('--pitch', pitch + 'px');
 
-        // Estimate total virtual height (bounded representation)
-        const totalVirtualHeight = 1000000000000000n; // 1 Quadrillion virtual scroll space
-        // To prevent CSS layout limitations with extremely huge numbers, we map scroll ratio
-        // But for pure virtualization, we track logical index offset.
-        
-        // Calculate starting logical index based on scrollTop
-        let cardIndexOffset = Math.floor(scrollTop / CONFIG.cardHeight) - CONFIG.bufferCount;
-        if (cardIndexOffset < 0) cardIndexOffset = 0;
+    while (track.children.length < W) track.appendChild(createSlot());
+    while (track.children.length > W) track.removeChild(track.lastElementChild);
 
-        const baseLogical = state.currentLogicalIndex >= BigInt(cardIndexOffset) 
-            ? state.currentLogicalIndex - BigInt(Math.max(0, cardIndexOffset)) 
-            : state.currentLogicalIndex + BigInt(cardIndexOffset);
+    clearCur();
+    base = anchor > BigInt(BUF) ? anchor - BigInt(BUF) : 1n;
+    const off = Number(anchor - base);
+    fillAll();
+    if (first) { vp.scrollTop = Math.max(0, topFor(off)); playEnter(off); }
+    else vp.scrollTop = Math.max(0, (off + frac) * pitch - H / 2);
+    updateCurrent();
+  }
 
-        // Render physical cards
-        const streamOffsetY = cardIndexOffset * CONFIG.cardHeight;
-        profileStream.style.transform = `translateY(${streamOffsetY}px)`;
+  function scheduleRelayout() {
+    if (!rlRaf) rlRaf = requestAnimationFrame(() => { rlRaf = 0; relayout(false); });
+  }
 
-        // Total virtual spacer height
-        virtualSpacer.style.height = '10000000px';
+  /* ---- jumping & stepping ---- */
+  function jumpTo(n) {
+    cancelAnim();
+    base = n > BigInt(BUF) ? n - BigInt(BUF) : 1n;
+    const off = Number(n - base);
+    clearCur();
+    fillAll();
+    vp.scrollTop = Math.max(0, topFor(off));
+    playEnter(off);
+    updateCurrent();
+  }
 
-        let middleCardId = state.currentLogicalIndex;
-        let minDistanceToCenter = Infinity;
+  function cancelAnim() { if (anim) { cancelAnimationFrame(anim); anim = 0; } }
 
-        for (let i = 0; i < physicalCards.length; i++) {
-            const cardObj = physicalCards[i];
-            const logicalId = BigInt(cardIndexOffset + i) + 1n;
-            
-            if (logicalId < 1n) {
-                cardObj.element.style.visibility = 'hidden';
-                continue;
-            } else {
-                cardObj.element.style.visibility = 'visible';
-            }
+  function stepBy(dir) {
+    if (dir < 0 && curBig <= 1n) return;
+    const target = Math.max(0, topFor(curIdx + dir));
+    const dist = target - vp.scrollTop;
+    if (reduceMq.matches || Math.abs(dist) < 1) { cancelAnim(); vp.scrollTop = target; schedule(); return; }
+    cancelAnim();
+    const startTop = vp.scrollTop, accStart = shiftAcc, t0 = performance.now(), dur = 380;
+    const tick = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);
+      vp.scrollTop = Math.round(startTop + (shiftAcc - accStart) + dist * e);
+      anim = p < 1 ? requestAnimationFrame(tick) : 0;
+    };
+    anim = requestAnimationFrame(tick);
+  }
 
-            // Determine if content update is needed
-            if (cardObj.currentProfileId !== logicalId) {
-                cardObj.currentProfileId = logicalId;
-                cardObj.token++;
-                const token = cardObj.token;
+  /* ---- input parsing ---- */
+  function parseNumber(raw) {
+    let s = String(raw == null ? '' : raw).trim().replace(/^puja\s*/i, '').replace(/[\s,_'’]/g, '');
+    if (!s) return { error: 'Enter a Puja number, like 5000 or 98765432101234567890.' };
+    if (!/^\d+$/.test(s)) return { error: 'Use whole numbers only, like 5000 or 98765432101234567890.' };
+    s = s.replace(/^0+(?=\d)/, '');
+    if (s === '0') return { error: 'Puja numbers start at 1.' };
+    if (s.length > MAX_DIGITS) return { error: 'That number is too long. The limit is ' + MAX_DIGITS.toLocaleString() + ' digits.' };
+    return { n: BigInt(s), s };
+  }
 
-                // Fetch or generate profile data
-                let profile = profileCache.get(logicalId);
-                if (!profile) {
-                    profile = generateProfileData(logicalId);
-                    profileCache.set(logicalId, profile);
-                }
+  function showError(msg) {
+    errEl.textContent = msg; errEl.hidden = false;
+    input.setAttribute('aria-invalid', 'true');
+  }
+  function clearError() {
+    errEl.hidden = true; errEl.textContent = '';
+    input.removeAttribute('aria-invalid');
+  }
 
-                // Apply data safely
-                if (cardObj.token === token) {
-                    renderCardData(cardObj.element, profile);
-                }
-            }
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const res = parseNumber(input.value);
+    if (res.error) { showError(res.error); input.focus(); return; }
+    clearError();
+    input.value = '';
+    input.blur();
+    jumpTo(res.n);
+  });
+  input.addEventListener('input', () => { if (!errEl.hidden) clearError(); });
 
-            // Track current prominent profile in viewport center
-            const cardTop = (cardIndexOffset + i) * CONFIG.cardHeight;
-            const distance = Math.abs(cardTop - scrollTop - (window.innerHeight / 2));
-            if (distance < minDistanceToCenter) {
-                minDistanceToCenter = distance;
-                middleCardId = logicalId;
-            }
-        }
+  /* ---- URL state (?puja=N) ---- */
+  function urlFor(s) {
+    try {
+      const u = new URL(location.href);
+      u.search = ''; u.hash = '';
+      u.searchParams.set('puja', s);
+      return u.toString();
+    } catch (e) { return location.href; }
+  }
+  function writeUrl() {
+    urlTimer = 0;
+    if (!curStr || curStr === urlStr) return;
+    try { history.replaceState(history.state, '', urlFor(curStr)); urlStr = curStr; } catch (e) { /* e.g. file:// */ }
+  }
+  function readUrl() {
+    try {
+      const v = new URLSearchParams(location.search).get('puja');
+      if (v == null) return null;
+      const res = parseNumber(v);
+      return res.error ? null : res;
+    } catch (e) { return null; }
+  }
+  window.addEventListener('popstate', () => {
+    const res = readUrl();
+    if (res && res.s !== curStr) { urlStr = res.s; jumpTo(res.n); }
+  });
 
-        if (state.currentLogicalIndex !== middleCardId) {
-            state.currentLogicalIndex = middleCardId;
-            currentPujaIndicator.textContent = `Puja ${middleCardId.toString()}`;
-            updateUrlParamSilently(middleCardId);
-        }
+  /* ---- copy / share ---- */
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+  }
 
-        updatePerfMonitor();
-    }
+  async function copyText(t) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(t); return true; }
+    } catch (e) { /* fall through */ }
+    const active = document.activeElement;
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = t; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, t.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (e) { return false; }
+    finally { if (active && active.focus) active.focus(); }
+  }
 
-    function renderCardData(cardEl, profile) {
-        cardEl._profileId = profile.id;
-        cardEl.querySelector('.card-avatar').src = profile.avatar;
-        cardEl.querySelector('.card-name').textContent = profile.name;
-        cardEl.querySelector('.card-handle').textContent = profile.handle;
-        cardEl.querySelector('.card-bio').textContent = profile.bio;
-        cardEl.querySelector('.card-location').textContent = profile.location;
-        cardEl.querySelector('.card-profession').textContent = profile.profession;
-        
-        const interestsContainer = cardEl.querySelector('.card-interests');
-        interestsContainer.innerHTML = profile.interests
-            .map(interest => `<span class="interest-tag">${interest}</span>`)
-            .join('');
+  function shareParts() {
+    const s = curStr, p = curProfile;
+    const text = 'Puja ' + short(s, 40) + (p ? ' — ' + p.job + ', ' + p.loc : '');
+    return { text, url: urlFor(s), title: 'Puja ' + short(s, 40) };
+  }
 
-        cardEl.querySelector('.stat-followers').textContent = profile.followers;
-        cardEl.querySelector('.stat-following').textContent = profile.following;
-        cardEl.querySelector('.stat-posts').textContent = profile.posts;
-    }
+  btnCopy.addEventListener('click', async () => {
+    const { text, url } = shareParts();
+    toast((await copyText(text + '\n' + url)) ? 'Link copied' : 'Couldn\u2019t copy. Copy the address bar link instead.');
+  });
 
-    // --- Scroll & Jump Management ---
-    let scrollScheduled = false;
-    function handleScroll() {
-        if (!scrollScheduled) {
-            scrollScheduled = true;
-            requestAnimationFrame(() => {
-                scrollScheduled = false;
-                updateVirtualWindow();
-            });
-        }
-    }
+  if (navigator.share) {
+    btnShare.hidden = false;
+    btnShare.addEventListener('click', async () => {
+      const { text, url, title } = shareParts();
+      try { await navigator.share({ title, text, url }); }
+      catch (e) { if (!e || e.name !== 'AbortError') toast((await copyText(text + '\n' + url)) ? 'Link copied' : 'Sharing isn\u2019t available here.'); }
+    });
+  }
 
-    function jumpToProfile(bigIntId) {
-        if (bigIntId < 1n) bigIntId = 1n;
-        state.currentLogicalIndex = bigIntId;
-        
-        // Calculate target scroll position
-        const targetOffset = Number(bigIntId - 1n) * CONFIG.cardHeight;
-        viewportContainer.scrollTop = Math.max(0, targetOffset - 100);
-        
-        updateVirtualWindow();
-        showToast(`Jumped to Puja ${bigIntId.toString()}`);
-    }
+  btnPrev.addEventListener('click', () => stepBy(-1));
+  btnNext.addEventListener('click', () => stepBy(1));
 
-    function updateUrlParamSilently(bigIntId) {
-        if (state.isRestoringUrl) return;
-        const newUrl = `${window.location.pathname}?puja=${bigIntId.toString()}`;
-        window.history.replaceState({ puja: bigIntId.toString() }, '', newUrl);
-    }
+  /* ---- keyboard on the scroller ---- */
+  vp.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.target !== vp) return;
+    if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); stepBy(1); }
+    else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); stepBy(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); jumpTo(1n); }
+  });
 
-    // --- Toast Notification ---
-    let toastTimeout = null;
-    function showToast(message) {
-        toast.textContent = message;
-        toast.classList.remove('hidden');
-        toast.classList.add('show');
-        if (toastTimeout) clearTimeout(toastTimeout);
-        toastTimeout = setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.classList.add('hidden'), 200);
-        }, 2500);
-    }
+  /* ---- scrolling ---- */
+  vp.addEventListener('scroll', schedule, { passive: true });
+  vp.addEventListener('wheel', cancelAnim, { passive: true });
+  vp.addEventListener('touchstart', cancelAnim, { passive: true });
+  vp.addEventListener('pointerdown', cancelAnim, { passive: true });
 
-    // --- Performance Monitor ---
-    function updatePerfMonitor() {
-        if (!state.isDevMode) return;
-        perfDomCount.textContent = physicalCards.length;
-        perfLogical.textContent = state.currentLogicalIndex.toString();
-        perfScroll.textContent = Math.round(state.physicalScrollTop);
-        perfCache.textContent = `${profileCache.size()} / ${CONFIG.maxCacheSize}`;
-    }
+  if (typeof ResizeObserver === 'function') new ResizeObserver(scheduleRelayout).observe(vp);
+  window.addEventListener('resize', scheduleRelayout, { passive: true });
+  window.addEventListener('orientationchange', scheduleRelayout, { passive: true });
 
-    // --- Input Validation & Parsing ---
-    function parseBigIntInput(inputStr) {
-        const cleaned = inputStr.trim().replace(/[,_]/g, '');
-        if (!/^\d+$/.test(cleaned)) return null;
-        try {
-            return BigInt(cleaned);
-        } catch {
-            return null;
-        }
-    }
-
-    // --- Event Listeners Setup ---
-    function initEventListeners() {
-        viewportContainer.addEventListener('scroll', handleScroll, { passive: true });
-
-        jumpBtn.addEventListener('click', () => {
-            const parsed = parseBigIntInput(jumpInput.value);
-            if (parsed !== null && parsed > 0n) {
-                jumpToProfile(parsed);
-                jumpInput.value = '';
-            } else {
-                showToast('Please enter a valid positive profile number.');
-            }
-        });
-
-        jumpInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                jumpBtn.click();
-            }
-        });
-
-        devToggleBtn.addEventListener('click', () => {
-            state.isDevMode = !state.isDevMode;
-            perfMonitor.classList.toggle('hidden', !state.isDevMode);
-            devToggleBtn.style.color = state.isDevMode ? 'var(--gold)' : 'var(--muted-text)';
-            updatePerfMonitor();
-        });
-
-        // Window resize handling with debounce
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                initPhysicalPool();
-                updateVirtualWindow();
-            }, 150);
-        });
-
-        // Keyboard Shortcuts
-        window.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                jumpInput.focus();
-                jumpInput.select();
-            } else if (e.key === 'Home') {
-                e.preventDefault();
-                jumpToProfile(1n);
-            } else if (e.key === 'PageDown') {
-                e.preventDefault();
-                viewportContainer.scrollTop += window.innerHeight * 0.8;
-            } else if (e.key === 'PageUp') {
-                e.preventDefault();
-                viewportContainer.scrollTop -= window.innerHeight * 0.8;
-            }
-        });
-
-        // Page Visibility pause handling
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                // Pause background calculations if any
-            }
-        });
-    }
-
-    // --- Initialization ---
-    function init() {
-        // Parse URL query parameter on startup (?puja=...)
-        const urlParams = new URLSearchParams(window.location.search);
-        const pujaParam = urlParams.get('puja');
-        
-        let initialId = 1n;
-        if (pujaParam) {
-            const parsed = parseBigIntInput(pujaParam);
-            if (parsed !== null && parsed > 0n) {
-                initialId = parsed;
-            }
-        }
-
-        state.currentLogicalIndex = initialId;
-        initPhysicalPool();
-
-        // Position initial scroll offset
-        if (initialId > 1n) {
-            const targetOffset = Number(initialId - 1n) * CONFIG.cardHeight;
-            viewportContainer.scrollTop = Math.max(0, targetOffset - 100);
-        }
-
-        updateVirtualWindow();
-        initEventListeners();
-
-        // Release URL restoration flag
-        setTimeout(() => {
-            state.isRestoringUrl = false;
-        }, 100);
-    }
-
-    // Run when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-
+  /* ---- start ---- */
+  const initial = readUrl();
+  if (initial) urlStr = ''; // let the first sync normalise the URL
+  relayout(true, initial ? initial.n : 1n);
 })();
